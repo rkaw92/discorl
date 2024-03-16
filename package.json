@@ -1,0 +1,36 @@
+{
+  "name": "discorl",
+  "version": "0.1.0",
+  "description": "distributed cooperative rate limiting",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "node --require ts-node/register --test src/**/*.test.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rkaw92/discorl.git"
+  },
+  "keywords": [
+    "ticket",
+    "ratelimit",
+    "distributed",
+    "qps",
+    "rps"
+  ],
+  "author": "Robert Kawecki <robert+public@rkaw.pl>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/rkaw92/discorl/issues"
+  },
+  "homepage": "https://github.com/rkaw92/discorl#readme",
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "fastify": "^4.26.1",
+    "zod": "^3.22.4"
+  }
+}
