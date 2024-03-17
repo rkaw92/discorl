@@ -1,5 +1,4 @@
-import { FastifyPluginAsync } from "fastify";
-import { Interval, IntervalProvider, SystemTimers } from "../time";
+import { Interval, IntervalProvider, systemTime } from "../time";
 import { TicketPool } from "./TicketPool";
 import { TimedTicketPool } from "./TimedTicketPool";
 import { TicketPoolConfigLoader } from "./interfaces/TicketPoolConfigLoader";
@@ -11,7 +10,10 @@ export class RateLimitManager {
     protected pools = new Map<string, TimedTicketPool>();
     protected reloadTimer: Interval | null = null;
 
-    constructor(protected loader: TicketPoolConfigLoader, protected intervalProvider: IntervalProvider = new SystemTimers()) {}
+    constructor(
+        protected loader: TicketPoolConfigLoader,
+        protected intervalProvider: IntervalProvider = systemTime,
+    ) {}
 
     async init(): Promise<void> {
         return this.reload();

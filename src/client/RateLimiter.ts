@@ -1,44 +1,82 @@
 import { RateLimitRequester } from "./interfaces/RateLimitRequester";
 import { RateLimitOrder } from "../RateLimitOrder";
 import { hexId } from "../id";
-import { Interval, IntervalProvider, SystemTimers } from "../time";
+import { Interval, IntervalProvider, systemTime } from "../time";
 import { FetchRequester } from "./FetchRequester";
+import { EventEmitter } from "node:events";
+import { FallbackOrderGenerator } from "./interfaces/FallbackOrderGenerator";
+import { keepPrevious } from "../fallback";
 
-export class RateLimiter {
+export class RateLimiter extends EventEmitter {
     protected remaining = 0;
     protected order: RateLimitOrder | null = null;
     protected tickTimer: Interval | null = null;
     protected currentTickMs: number = NaN;
     protected reloadTimer: Interval | null = null;
+    protected fallbackReloadMs = 2000;
 
     constructor(
-        protected poolId: string,
+        protected poolId: string = 'default',
         protected clientId: string = hexId(),
         protected loader: RateLimitRequester = new FetchRequester(),
-        protected intervalProvider: IntervalProvider = new SystemTimers()
-    ) {}
+        protected fallback: FallbackOrderGenerator = keepPrevious(),
+        protected intervalProvider: IntervalProvider = systemTime,
+    ) {
+        super();
+        this.order = fallback(this.order);
+        this.on('newListener', (event, listener) => {
+            if (event === 'config') {
+                listener(this.order);
+            }
+        });
+    }
 
     async init(): Promise<void> {
         return this.reload();
     }
 
+    halt(): void {
+        this.order = null;
+    }
+
     async reload(): Promise<void> {
-        this.order = await this.loader.request(this.poolId, this.clientId);
+        const oldConfig = this.order;
         this.reloadTimer?.clear();
+        try {
+            this.order = await this.loader.request(this.poolId, this.clientId);
+        } catch (err) {
+            this.order = this.fallback(this.order);
+        }
+        this.detectConfigChanges(oldConfig);
         this.reloadTimer = this.intervalProvider.setInterval(
             () => this.reload().catch((err) => {
-                // TODO: Notify about reload error
+                this.emit('error', err);
             }),
-            this.order.refreshIn
+            this.order?.refreshIn ?? this.fallbackReloadMs
         );
         this.startTicker();
-        // TODO: Implement time-based safety shutoff or gradual decay in case we can't contact the rate limiter server.
     }
-    
-    // TODO: Add change emitter, so that the limiter can be used in alternative mode.
+
+    detectConfigChanges(oldConfig: RateLimitOrder | null) {
+        const newConfig = this.order;
+        if (
+            (!oldConfig && newConfig) ||
+            (oldConfig && !newConfig) ||
+            (
+                oldConfig &&
+                newConfig && (
+                    oldConfig.periodMs !== newConfig.periodMs ||
+                    oldConfig.refreshIn !== newConfig.refreshIn ||
+                    oldConfig.tickets !== newConfig.tickets
+                )
+            )
+        ) {
+            this.emit('config', newConfig);
+        }
+    }
 
     consume(usage = 1): boolean {
-        if (this.remaining > usage) {
+        if (this.remaining >= usage) {
             this.remaining -= usage;
             return true;
         } else {
@@ -65,12 +103,14 @@ export class RateLimiter {
             this.tickTimer = this.intervalProvider.setInterval(() => {
                 this.tick();
             }, this.order.periodMs);
+            this.currentTickMs = this.order.periodMs;
         }
     }
 
     protected updateTicker() {
         if (!this.order) {
             this.tickTimer?.clear();
+            this.tickTimer = null;
             return;
         }
         this.startTicker();

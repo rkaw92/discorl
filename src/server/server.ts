@@ -4,7 +4,7 @@ import { StaticConfigLoader } from './StaticConfigLoader';
 import { env } from '../env';
 
 const app = fastify({
-    logger: true
+    //logger: true
 });
 
 const staticConfigs = new StaticConfigLoader([
@@ -12,8 +12,7 @@ const staticConfigs = new StaticConfigLoader([
         poolId: 'default',
         tickets: Number(env('RATELIMIT_TICKETS')),
         periodMs: 1000,
-        expectedClients: 10,
-        
+        expectedClients: 1,
     }
 ]);
 
